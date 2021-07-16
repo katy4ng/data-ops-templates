@@ -1,4 +1,13 @@
 # Databricks notebook source
+# MAGIC %md
+# MAGIC 
+# MAGIC **How to use this template:**   
+# MAGIC Name the file with the "date-eda-task" format. EG: "20-06-24-eda-duplicate_skus"   
+# MAGIC Clone the file to a folder in your workspace that follows the lexer-client-format Eg: "lexer-client-datarockstar"   
+# MAGIC Follow the basic structure laid out in the notebook.
+
+# COMMAND ----------
+
 from data_toolkit.s3_helpers import S3Utils
 from pyspark.dbutils import DBUtils
 
@@ -59,11 +68,11 @@ INTERACTIVE = True
 # COMMAND ----------
 
 # Which Client are you exploring?
-CLIENT = ''
+CLIENT = 'datarockstar'
 
 # Which Source directory?
 # Example: s3://lexer-client-{CLIENT}/integrations/provider=magento/account_id=11292/year=2021/month=06
-SOURCE_DIR = f's3://lexer-client-{CLIENT}/...'
+SOURCE_DIR = f's3://lexer-client-{CLIENT}/'
 
 sources = S3Utils.list_keys(SOURCE_DIR)
 if INTERACTIVE:
