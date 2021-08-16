@@ -19,10 +19,10 @@ pd.options.plotting.backend = "plotly"
 
 # COMMAND ----------
 
-BUCKET='lexer-client-thememo'
-REGION='au'
-v1_dataset_id='jgtzq55z8f'
-v2_dataset_id='vm1jc8trwp'
+BUCKET={bucket}
+REGION={region}
+v1_dataset_id={id1}
+v2_dataset_id={id2}
 
 # COMMAND ----------
 
