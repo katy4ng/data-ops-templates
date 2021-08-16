@@ -98,6 +98,7 @@ def write_single_csv(spark_df, out_path, header=True, sep="|"):
   dbutils.fs.mv(out_path+'tmp', out_path)
   return True  
 
+
 # COMMAND ----------
 
 # DBTITLE 1,Stupid column headers
