@@ -7,6 +7,7 @@ import hashlib
 import json
 from datetime import datetime
 from pyspark.sql import functions as F
+from pyspark.sql import DataFrame, Column
 
 # COMMAND ----------
 
