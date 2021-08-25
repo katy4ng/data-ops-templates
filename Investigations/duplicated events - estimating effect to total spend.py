@@ -7,6 +7,7 @@ import hashlib
 import json
 from datetime import datetime
 from pyspark.sql import functions as F
+from pyspark.sql import types as T
 from pyspark.sql import DataFrame, Column
 
 # COMMAND ----------
@@ -89,7 +90,7 @@ orders_delta = (
 
 # COMMAND ----------
 
-selected_cols = parse_dataset(order_source)
+selected_cols = parse_dataset(orders_delta)
 
 # COMMAND ----------
 
@@ -132,7 +133,7 @@ selected_cols.where(F.col("quantity") < 0).agg(F.sum("price_paid"),F.sum("quanti
 
 selected_cols.where(F.col("link_value") == '{example_email}').display()
 selected_cols.where(F.col("link_value") == '{example_email}').select("history_key","type","link_type","link_value").display()
-selected_cols.where(F.col("email") == '{example_email}').select("order_number","cancel_reason","financial_status","refunds.id").distinct().display()
+order_source.where(F.col("email") == '{example_email}').select("order_number","cancel_reason","financial_status","refunds.id").distinct().display()
 
 # COMMAND ----------
 
@@ -148,4 +149,48 @@ orders_delta.select(F.col("record")).count()
 
 # COMMAND ----------
 
+# QA immediately post purge/confirm purge
 
+orders_purged = (
+    spark.read.format("delta")
+    .load(f"s3://{BUCKET}/customerapi/{REGION}-identity-history/lake/datasets/delta/identity_history/")
+    .where(F.col("dataset_id").isin(DATASET_ID))
+)
+
+orders_purged.display()
+
+# COMMAND ----------
+
+# QA after dataset reload
+
+order_source = spark.read.json(
+    f"s3://{BUCKET}/integrations/provider=shopify/account_id=*/year=*/month=*/day=*/orders_*.ndjson.gz"
+)
+
+orders_purged_reloaded = (
+    spark.read.format("delta")
+    .load(f"s3://{BUCKET}/customerapi/{REGION}-identity-history/lake/datasets/delta/identity_history/")
+    .where(F.col("dataset_id").isin(DATASET_ID))
+)
+
+# COMMAND ----------
+
+post_purge_df = parse_dataset(orders_purged_reloaded)
+
+# COMMAND ----------
+
+post_purge_df.where(F.col("link_value") == '{example_email}').display()
+post_purge_df.where(F.col("link_value") == '{example_email}').select("history_key","type","link_type","link_value").display()
+order_source.where(F.col("email") == '{example_email}').select("order_number","cancel_reason","financial_status","refunds.id").distinct().display()
+
+# COMMAND ----------
+
+post_purge_df.groupBy(F.length(F.col("history_key")) > 7 ).count().display()
+
+# COMMAND ----------
+
+post_purge_df.groupBy("history_key").count().count()
+
+# COMMAND ----------
+
+orders_purged_reloaded.select(F.col("record")).count()
