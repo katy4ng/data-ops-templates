@@ -8,7 +8,7 @@
 
 # COMMAND ----------
 
-from data_toolkit.s3_helpers import S3Utils
+from data_toolkit.s3_helpers import S3Utils  # See repo here https://github.com/lexerdev/data-toolkit
 
 # Databricks Librarys
 import pyspark.sql.functions as F
