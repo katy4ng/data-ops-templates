@@ -109,7 +109,7 @@ selected_cols.agg(F.sum("price_paid"),F.sum("quantity"),F.countDistinct("history
 
 # hub gives total spend as _
 
-((54574722-1066425)/54574722)*100
+((good_ids_sum - bad_ids_count)/good_ids_sum)*100
 
 
 # COMMAND ----------
@@ -128,6 +128,10 @@ selected_cols.where(F.col("quantity") < 0).agg(F.sum("price_paid"),F.sum("quanti
 # COMMAND ----------
 
 # prep for QA:
+
+# COMMAND ----------
+
+selected_cols.where(F.length(F.col("history_key")) > 7 ).display()
 
 # COMMAND ----------
 
