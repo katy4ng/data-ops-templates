@@ -103,31 +103,39 @@ def get_enrichment_status(job_id):
 
 # COMMAND ----------
 
-# MAGIC %md #1. Spend decile
+# MAGIC %md ## Spend decile
 
 # COMMAND ----------
 
 spend_decile_response=create_enrichment(name="Spend Decile", description="Spend Decile from a profile's total spend.", bucket=f"lexer-client-{CLIENT}", namespace=f"{NAME_SPACE}")
-spend_decile_response
+print(json.dumps(spend_decile_response,indent=4))
 
 # COMMAND ----------
 
-spend_decile_response
+# MAGIC %md ## Inferred Gender
 
 # COMMAND ----------
 
 ig_response=create_enrichment(name="Inferred Gender", description="Inferred Gender from a profile's first name.", bucket=f"lexer-client-{CLIENT}", namespace=f"{NAME_SPACE}")
-ig_response
+print(json.dumps(ig_response,indent=4)) 
+
+# COMMAND ----------
+
+# MAGIC %md ## LTV
 
 # COMMAND ----------
 
 ltv_response=create_enrichment(name="LTV Attributes", description="LTV attributes calculated from historic purchases and predicts Churn Risk, Predicted Orders, Predicted Spend, Predicted Order Value for the next 12 months.", bucket=f"lexer-client-{CLIENT}", namespace=f"{NAME_SPACE}")
-ltv_response
+print(json.dumps(ltv_response,indent=4)) 
+
+# COMMAND ----------
+
+# MAGIC %md ## Recommander
 
 # COMMAND ----------
 
 recommander=create_enrichment(name="Product Recommender Attributes", description="Product Recommender attributes calculated based on products purchased by similar users.", bucket=f"lexer-client-{CLIENT}", namespace=f"{NAME_SPACE}")
-recommander
+print(json.dumps(recommander,indent=4)) 
 
 # COMMAND ----------
 
