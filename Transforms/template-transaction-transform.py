@@ -119,10 +119,6 @@ DATA_STREAMS = [
     'products'
 ]
 
-# Stream is a class which you can store multiple dataframes
-class Streams(namedtuple('Streams', DATA_STREAMS)):
-    def __getitem__(self, k):
-        return getattr(self, k)
 
 # COMMAND ----------
 
@@ -151,32 +147,11 @@ ORDER_SCHEMA="{}"
 
 # COMMAND ----------
 
-# Zip schemas with the data streams into a dictionary.
-DATA_SCHEMAS_ORIGINAL = {
-    'customers':             CUSTOMERS_SCHEMA,
-    'orders':                ORDERS_SCHEMA,
-    'products':              PRODUCTS_SCHEMA,
+DATA_STREAM_SCHEMA = {
+  "customer":CUSTOMER_SCHEMA,
+  "product":PRODUCT_SCHEMA,
+  "order":OORDER_SCHEMA
 }
-
-# Helper
-def with_corrupt_record_col(json_schema: str) -> str:
-    tmp = json.loads(json_schema)
-    tmp["fields"].append(
-        {
-            "metadata": {},
-            "name": "_corrupt_record",
-            "nullable": True,
-            "type": "string"
-        }
-    )
-    return json.dumps(tmp,indent=2)
-  
-# Add corrupt_record column to the schemas
-DATA_SCHEMAS = Streams(
-    **dict(
-        map(lambda k: (k, with_corrupt_record_col(STATIC_SCHEMAS_ORIGINAL[k])), STATIC_SCHEMAS_ORIGINAL)
-    )
-)
 
 # COMMAND ----------
 
@@ -197,6 +172,12 @@ SOURCE_DIR = f's3://lexer-client-{CONFIG.client}/imports/*/*/*/'
 
 # COMMAND ----------
 
+SOURCE_DIRECTORY=f"s3://{Config.bucket}/integrations/provider=salesforce_marketing/"
+sources=S3Utils.list_keys(SOURCE_DIRECTORY).persist()
+sources.display()
+
+# COMMAND ----------
+
 def read_source(stream:str, file_format:str,schema: str) -> Dict:
     df = spark.read.format(file_format).option('mode','PERMISSIVE').load(stream, schema=T.StructType.fromJson(json.loads(schema)))
 
@@ -206,21 +187,25 @@ def read_source(stream:str, file_format:str,schema: str) -> Dict:
     good = df.where(F.col("_corrupt_record").isNull()).drop("_corrupt_record")
 
     return {"good":good, "bad":bad}
+  
+def get_file_list(s3_source:DataFrame,file_name:str) ->List:
+    s3_source=S3Utils.filter_keys(s3_source,file_name)
+    return s3_source.select("path").rdd.flatMap(lambda x: x).collect()
 
 # COMMAND ----------
 
+SOURCES_DEBUG={}
+
 for stream in DATA_STREAMS:
     print(f"Loading source {stream}")
-    stream_path=SOURCE_DIR+stream+"*.ndjson.gz" # or other file format 
-    SOURCES_DEBUG[stream] = read_source(stream_path, DATA_SCHEMAS[stream])
-    if not STREAMS_DEBUG[stream]["bad"].rdd.isEmpty():
+    SOURCES_DEBUG[stream] = read_source(get_file_list(sources,stream), 'json', DATA_STREAM_SCHEMA[stream])
+    if not SOURCES_DEBUG[stream]["bad"].rdd.isEmpty():
       print(stream, 'has corrupt record')
       #print bad records
-      STREAMS_DEBUG[stream][1].display()
+      SOURCES_DEBUG[stream]["bad"].display()
     else:
       print(stream, 'is good')
-    
-SOURCES_DEBUG = Streams(**STREAMS_DEBUG)
+      SOURCES_DEBUG[stream]["good"].display()
 
 # COMMAND ----------
 
