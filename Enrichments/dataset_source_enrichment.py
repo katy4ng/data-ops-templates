@@ -1,7 +1,6 @@
 # Databricks notebook source
 # MAGIC %md
 # MAGIC Enrichment that uses a dataset as a source
-# MAGIC 
 
 # COMMAND ----------
 
