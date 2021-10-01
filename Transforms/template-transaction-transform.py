@@ -568,14 +568,14 @@ def apply_metadata(dataframe:DataFrame,dataset_id:str,record_type:str,version:st
 # COMMAND ----------
 
 # Customer
-customer_export=apply_metadata(customer_fit,dataset_id=CONFIG.dataset_id,record_type='customer_record')
+customer_export=apply_metadata(customer_fit,dataset_id=Config.dataset_id,record_type='customer_record')
 # Transaction
-ecommerce_purchase_export=apply_metadata(ecommerce_purchase_export,dataset_id=CONFIG.dataset_id,record_type='ecommerce_purchase')
-ecommerce_return_export=apply_metadata(ecommerce_return_export,dataset_id=CONFIG.dataset_id,record_type='ecommerce_return')
-instore_purchase_export=apply_metadata(instore_purchase_export,dataset_id=CONFIG.dataset_id,record_type='instore_purchase')
-instore_return_export=apply_metadata(instore_return_export,dataset_id=CONFIG.dataset_id,record_type='instore_return')
+ecommerce_purchase_export=apply_metadata(ecommerce_purchase_export,dataset_id=Config.dataset_id,record_type='ecommerce_purchase')
+ecommerce_return_export=apply_metadata(ecommerce_return_export,dataset_id=Config.dataset_id,record_type='ecommerce_return')
+instore_purchase_export=apply_metadata(instore_purchase_export,dataset_id=Config.dataset_id,record_type='instore_purchase')
+instore_return_export=apply_metadata(instore_return_export,dataset_id=Config.dataset_id,record_type='instore_return')
 # Product
-product_export=apply_metadata(product_export,dataset_id=CONFIG.dataset_id,record_type='product')
+product_export=apply_metadata(product_export,dataset_id=Config.dataset_id,record_type='product')
 
 # COMMAND ----------
 
@@ -594,19 +594,19 @@ product_export=apply_metadata(product_export,dataset_id=CONFIG.dataset_id,record
 # The convention is to use the name of the provider if it's coming from an integration. If not just use "transaction"
 SERVICE_NAME={your_service_name}
 
-customer_export_path = output_path(CONFIG.bucket, CONFIG.client, SERVICE_NAME, "customer_record", CONFIG.dataset_id, JOB_RUN_ID)
-product_export_path = output_path(CONFIG.bucket, CONFIG.client, SERVICE_NAME, "product", CONFIG.dataset_id, JOB_RUN_ID)
+customer_export_path = output_path(Config.bucket, Config.client, SERVICE_NAME, "customer_record", Config.dataset_id, JOB_RUN_ID)
+product_export_path = output_path(Config.bucket,Config.client, SERVICE_NAME, "product", Config.dataset_id, JOB_RUN_ID)
 ecommerce_purchase_export_path = output_path(
-    CONFIG.bucket, CONFIG.client, SERVICE_NAME, "ecommerce_purchase", CONFIG.dataset_id, JOB_RUN_ID
+    Config.bucket, Config.client, SERVICE_NAME, "ecommerce_purchase", Config.dataset_id, JOB_RUN_ID
 )
 ecommerce_return_export_path = output_path(
-    CONFIG.bucket, CONFIG.client, SERVICE_NAME, "ecommerce_return", CONFIG.dataset_id, JOB_RUN_ID
+    Config.bucket, Config.client, SERVICE_NAME, "ecommerce_return", Config.dataset_id, JOB_RUN_ID
 )
 instore_purchase_export_path = output_path(
-    CONFIG.bucket, CONFIG.client, SERVICE_NAME, "instore_purchase", CONFIG.dataset_id, JOB_RUN_ID
+    Config.bucket, Config.client, SERVICE_NAME, "instore_purchase", Config.dataset_id, JOB_RUN_ID
 )
 instore_return_export_path = output_path(
-    CONFIG.bucket, CONFIG.client, SERVICE_NAME, "instore_return", CONFIG.dataset_id, JOB_RUN_ID
+    Config.bucket, Config.client, SERVICE_NAME, "instore_return", Config.dataset_id, JOB_RUN_ID
 )
 
 # COMMAND ----------
@@ -739,7 +739,7 @@ import requests
 
 job_responses = []
 
-REGION=CONFIG.region
+REGION=Config.region
 
 for table, prefixes in arrange_jobs(job_prefixes).items():
     job_responses.append(
