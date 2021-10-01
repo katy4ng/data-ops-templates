@@ -178,9 +178,28 @@ sources.display()
 
 # COMMAND ----------
 
-def read_source(stream:str, file_format:str,schema: str) -> Dict:
-    df = spark.read.format(file_format).option('mode','PERMISSIVE').load(stream, schema=T.StructType.fromJson(json.loads(schema)))
+# Low level helper to add a input data column.
+def add_input_file_date(source: DataFrame, date_pattern:str, col_name: str = "file_date") -> DataFrame:
+    return (
+        source.withColumn(
+            col_name,
+            F.regexp_extract(
+                F.input_file_name(),
+                date_pattern,
+                1,
+            ),
+        )
+    )
 
+# COMMAND ----------
+
+def read_source(stream:str, file_format:str,schema: str,date_pattern:str) -> Dict:
+    df = (
+      spark.read.format(file_format).option('mode','PERMISSIVE').load(stream, schema=T.StructType.fromJson(json.loads(schema)))
+         )
+    
+    df  = add_input_file_date(df,date_pattern)
+    
     df.cache() # Can't do any filter/select on _corrupt_record without this
 
     bad = df.select("_corrupt_record").where(F.col("_corrupt_record").isNotNull())
@@ -198,7 +217,7 @@ SOURCES_DEBUG={}
 
 for stream in DATA_STREAMS:
     print(f"Loading source {stream}")
-    SOURCES_DEBUG[stream] = read_source(get_file_list(sources,stream), 'json', DATA_STREAM_SCHEMA[stream])
+    SOURCES_DEBUG[stream] = read_source(get_file_list(sources,stream), 'json', DATA_STREAM_SCHEMA[stream],date_pattern=r"(year=\d{4}\/month=\d{2}\/day=\d{2})")
     if not SOURCES_DEBUG[stream]["bad"].rdd.isEmpty():
       print(stream, 'has corrupt record')
       #print bad records
@@ -217,9 +236,6 @@ SOURCES={}
 for stream in DATA_STREAMS:
     SOURCES[stream] = SOURCES_DEBUG[stream]["good"]
 
-SOURCES = Streams(**SOURCES)
-
-
 # COMMAND ----------
 
 # MAGIC %md
@@ -237,25 +253,9 @@ SOURCES = Streams(**SOURCES)
 
 # COMMAND ----------
 
-# Low level helper to add a input data column.
-def add_input_file_date(source: DataFrame, date_pattern:str, col_name: str = "file_date") -> DataFrame:
-    return (
-        source.withColumn(
-            col_name,
-            F.regexp_extract(
-                F.input_file_name(),
-                date_pattern,
-                1,
-            ),
-        )
-    )
-
 # Please note filter_cols can be a list. So you can pass multiple columns to it
 # The date_pattern can be either r"(year=\d{4}\/month=\d{2}\/day=\d{2})" or r"\/imports\/(\d{4}\/\d{2}\/\d{2})" subject to import path
-def filter_most_recent(source: DataFrame, filter_cols: List[Column], order_by:Column="file_date", date_pattern:str, test=False) -> DataFrame:
-    if order_by=='file_date':
-      source=add_input_file_date(source, date_pattern)
-      
+def filter_most_recent(source: DataFrame, filter_cols: List[Column], order_by:Column="file_date", date_pattern:str, test=False) -> DataFrame:      
     df=(
         source
         # Add a row number to each record based on the filter cols & file date
@@ -280,20 +280,18 @@ def filter_most_recent(source: DataFrame, filter_cols: List[Column], order_by:Co
 
 orders_persist=filter_most_recent(source= SOURCES.orders, 
                                   filter_cols= "entity_id",
-                                  date_pattern = r"(year=\d{4}\/month=\d{2}\/day=\d{2})" 
-                                  test=True).persist()
+                                  test=True)
 
 customer_persist=filter_most_recent(source= SOURCES.customers, 
                                     filter_cols="customer.id",
-                                    date_pattern = r"(year=\d{4}\/month=\d{2}\/day=\d{2})" 
-                                    test=True).persist()
+                                    test=True)
 
 # Sometimes we need to rely on a native column to dedupe instead of input path
 # In this case, you need to specify a order_by parameter and can leave date_pattern blank
 products_persist=filter_most_recent(source= SOURCES.products,
                                     filter_cols="sku",
                                     order_by="updated_at",
-                                    test=True).persist()
+                                    test=True)
 
 
 # COMMAND ----------
@@ -371,7 +369,7 @@ def gather_link(email: Column, customer_id: Column) -> Column:
 # In rare oncassion, you may need multiple entity_refs. See shopify transfrom.
 def gather_entity_ref(ref_col:Column,id_type:str) -> Column:
     return (F.struct(
-                F.col(ref_col).alias('id'),
+                ref_col.alias('id'),
                 F.lit(id_type).alias('id_type'),
                 F.lit(CONFIG.dataset_id).alias('dataset_id')
             )
@@ -400,6 +398,34 @@ def gather_store(store_name:Column , store_id:Column,store_type:str)-> Column:
 
 # COMMAND ----------
 
+
+def parepare_products(is_return:bool) -> Column:
+    # Spends
+    # Column expression should be subject to data
+    quantity=F.col("order_quantity").cast("integer").alias("quantity")
+    price_paid=F.col("order_amount").alias("price_paid")
+    discount=F.col("order_discount_amount").alias("discount")
+    full_price=(price_paid+discount).alias("full_price")
+    # Product link
+    entity_ref=gather_entity_ref(F.col("product_id"),"product_id").alias('entity_ref')
+    
+    # Porudtc information 
+    
+    # Base fields can be applied to both purchase and return
+    base_expression= [entity_ref,
+                       quantity,
+                       price_paid,
+                       full_price]
+    
+    
+    #Add discount for purchase
+    if not is_return:
+        base_expression.append(discount)
+
+    return (F.struct(base_expression).alias("products"))
+
+# COMMAND ----------
+
 # MAGIC %md You are also encoraged to wirte higher order dataframe in dataframe out functions
 
 # COMMAND ----------
@@ -407,7 +433,7 @@ def gather_store(store_name:Column , store_id:Column,store_type:str)-> Column:
 # Just an example:
 
 def transaction_persist_to_fit(transaction_persist:DataFrame, is_return:bool , channel:str ) -> DataFrame:
-    
+
     RETURN_FILTER= ((F.col('item.qty_ordered') >= 1))
     # Chnage the filter for returns and purchases
     if is_return:
@@ -423,23 +449,14 @@ def transaction_persist_to_fit(transaction_persist:DataFrame, is_return:bool , c
         .select(
             F.col('created_at').alias('action_at'),
             F.col("entity_id").alias('history_key'),
-            F.struct(
-                F.col('item.qty_ordered').alias('quantity'),
-                F.col('item.row_total').alias('price_paid'),
-                (-F.col('discount_amount')).alias('discount'),
-                (F.col('item.row_total')- F.col('discount_amount')).alias('full_price'),
-                F.col('item.sku').alias('sku'),
-                F.trim('item.name').alias('name'),
-                F.col('item.product_id').alias('product_id'),
-                gather_entity_ref(F.col('item.sku'),'sku').alias('entity_ref')
-        ).alias("products"),
-          gather_link(F.col("customer_email"),F.col("customer_id")),
-          gather_payment_types("payment.additional_information","payment.amount_paid",valid_payment_type),
-          gather_store("store_name","store_id",channel)
+            parepare_products(is_return),
+            gather_link(F.col("customer_email"),F.col("customer_id")),
+            gather_payment_types("payment.additional_information","payment.amount_paid",valid_payment_type),
+            gather_store("store_name","store_id",channel)
         )
     )
     
-return transaction_fit
+    return transaction_fit
 
 # COMMAND ----------
 
