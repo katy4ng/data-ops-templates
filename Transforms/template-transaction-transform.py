@@ -399,30 +399,48 @@ def gather_store(store_name:Column , store_id:Column,store_type:str)-> Column:
 # COMMAND ----------
 
 
-def parepare_products(is_return:bool) -> Column:
-    # Spends
-    # Column expression should be subject to data
+def prepare_products(is_return:bool) -> Column:
+    # purchase fields
     quantity=F.col("order_quantity").cast("integer").alias("quantity")
     price_paid=F.col("order_amount").alias("price_paid")
-    discount=F.col("order_discount_amount").alias("discount")
+    discount=F.abs(F.col("order_discount_amount")).alias("discount") # Force positive
     full_price=(price_paid+discount).alias("full_price")
+    
+    # return fields, force negative
+    return_quantity=(-F.abs(quantity)).alias("quantity")
+    return_price_paid=(-F.abs(price_paid)).alias("price_paid")
+    return_full_price=(-F.abs(full_price)).alias("full_price")
+    
     # Product link
     entity_ref=gather_entity_ref(F.col("product_id"),"product_id").alias('entity_ref')
     
-    # Porudtc information 
+    # Product information
+    product_id =F.col("product_id").alias("product_id")
+    upc=F.col("product_upc").alias("upc")
+    name=F.col("product_name").alias("name")
+    color=F.lower("product_colour").alias("color")
+    size=F.upper("product_size").alias("size")
     
-    # Base fields can be applied to both purchase and return
-    base_expression= [entity_ref,
-                       quantity,
+    product_fileds=[entity_ref,
+                    upc,
+                    name,
+                    color,
+                    size]
+    
+    
+    purchase_price_fileds=[quantity,
+                       full_price,
                        price_paid,
-                       full_price]
+                       discount]
     
-    
-    #Add discount for purchase
-    if not is_return:
-        base_expression.append(discount)
-
-    return (F.struct(base_expression).alias("products"))
+    return_price_fileds=[return_quantity,
+                       return_full_price,
+                       return_price_paid]
+      
+    if is_return:
+      return (F.struct(*product_fileds,*return_price_fileds).alias("products"))
+    else:
+      return (F.struct(*product_fileds,*purchase_price_fileds).alias("products"))
 
 # COMMAND ----------
 
@@ -483,23 +501,22 @@ instore_return_fit=transaction_persist_to_fit(order_persist,is_return=True,chann
 # COMMAND ----------
 
 # This a helper to gather a single category to a column. If your transform have multiple category you'll need to ammend this function (see shopify) or later union them into an array (but watchout the null values)
-def prepare_categories(category_name: str,category_value) -> Column:
-    return (
-        F.when(
-            category_value.isNotNull(),
-            F.array(
-                F.struct(F.lit(category_name).alias("name"), category_value.alias("value"))
-            ))
-          .when(
-            category_value.isNull(),
-            F.lit(None)
-            )
-    )
+def prepare_categories(category_mapping) -> Column:
+    array_expression=[F.struct(F.lit(category).alias("name"), category_mapping[category].alias("value")) for category in category_mapping]
+    categories = F.array(array_expression)
+    # Filter out null values
+    categories = F.filter(categories,lambda x: x.value.isNotNull()).alias("categories")
+    return categories
 
 # COMMAND ----------
 
 # This is just an example from magento. You could also rewrite it into a function
 
+product_category={"Style ID":F.col("product_description_2"),
+"Division":F.col("product_description_5"),
+"Category":F.col("product_description_6")}
+                 
+  
 product_fit=product_persist.select(
     F.struct(
         F.col("sku").alias("id"),
@@ -511,7 +528,7 @@ product_fit=product_persist.select(
         F.col('upc'),
         F.col("name"),
         F.col("description"),
-        prepare_categories(category_name="Category",category_value=F.col("attribute_set_name")).alias('categories'),
+        prepare_categories(product_category),
         F.col("image")
     ).alias("product"))
 
